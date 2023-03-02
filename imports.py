@@ -8,5 +8,6 @@ import os, os.path
 import json
 from datetime import datetime
 from matplotlib import pyplot as plt
+from matplotlib.widgets import Button
 from matplotlib.widgets import RectangleSelector
 from matplotlib.patches import Circle

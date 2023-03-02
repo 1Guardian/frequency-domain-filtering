@@ -4,10 +4,10 @@
 #
 # Author : Tyler Martin
 #
-# Project Name : Project 1 | Porter Duff Operators
-# Date: 2/15/2023
+# Project Name : Project 2 | Frequency Domain Filtering
+# Date: 3/1/2023
 #
-# Description: This project implements the Porter-Duff operators
+# Description: This project implements a filter in the frequency domain
 #
 # Notes: Since I know you prefer to read and work in C++, this file is set
 #        up to mimic a standard C/C++ flow style, including a __main__()
@@ -44,46 +44,83 @@ rect_selector = None
 fequency_representation_shifted = None
 fig = None
 filename = None
+image = None
+magnitude_spectrum = None
+freq_filt_img = None
+reset = False
 
+#================================================================
+#
+# Function: key(event)
+#
+# Description: This function simply listens for key events and
+#              either saves the image, resets the canvas, or 
+#              quits the program based on which valid key is passed
+#
+#================================================================
+def key(event):
+
+    global magnitude_spectrum
+    global filename
+    global freq_filt_img
+    global reset
+
+    if event.key == 'r' and reset:
+        plt.close('all')
+        reset = False
+    elif event.key == 'w' and reset:
+        plt.imsave(filename + '.png', freq_filt_img, cmap = 'gray')
+    elif event.key == 'q':
+        sys.exit(0)
+
+#================================================================
+#
+# Function: onclick(eclick, erelease)
+#
+# Description: This function listens for the drawing of the bounding
+#              rect and then makes the mask and applies it to the 
+#              image before performing idft and displaying the 
+#              result.
+#
+#================================================================
 def onclick(eclick, erelease):
 
     #globals
     global rect_selector
     global fequency_representation_shifted
     global fig
-    global filename
+    global image
+    global freq_filt_img
+    global reset
 
     #make copy of frequency
+    row, column = image.shape
     fequency_representation_shifted_copy = np.copy(fequency_representation_shifted)
+    fequency_representation_shifted_mask = np.ones((row, column, 2), np.uint8)
 
-    #draw the circles
-    for i in range(int(rect_selector.extents[2]), int(rect_selector.extents[3])):
-        for j in range(int(rect_selector.extents[0]), int(rect_selector.extents[1])):
-                fequency_representation_shifted_copy[i][j] = 1
+    #draw the cutout
+    fequency_representation_shifted_mask[int(rect_selector.extents[2]):int(rect_selector.extents[3]), int(rect_selector.extents[0]):int(rect_selector.extents[1])] = 0
 
     #get reverse coords 
     rect_selector_mirror = np.asarray(rect_selector.extents)
-    rect_selector_mirror[0] = fequency_representation_shifted_copy.shape[1] - rect_selector_mirror[0]
-    rect_selector_mirror[1] = fequency_representation_shifted_copy.shape[1] - rect_selector_mirror[1]
-    rect_selector_mirror[2] = fequency_representation_shifted_copy.shape[0] - rect_selector_mirror[2]
-    rect_selector_mirror[3] = fequency_representation_shifted_copy.shape[0] - rect_selector_mirror[3]
+    rect_selector_mirror[0] = fequency_representation_shifted_mask.shape[1] - rect_selector_mirror[0]
+    rect_selector_mirror[1] = fequency_representation_shifted_mask.shape[1] - rect_selector_mirror[1]
+    rect_selector_mirror[2] = fequency_representation_shifted_mask.shape[0] - rect_selector_mirror[2]
+    rect_selector_mirror[3] = fequency_representation_shifted_mask.shape[0] - rect_selector_mirror[3]
 
-    for i in range(int(rect_selector_mirror[3]), int(rect_selector_mirror[2])):
-        for j in range(int(rect_selector_mirror[1]), int(rect_selector_mirror[0])):
-                fequency_representation_shifted_copy[i][j] = 1
+    fequency_representation_shifted_mask[int(rect_selector_mirror[3]):int(rect_selector_mirror[2]), int(rect_selector_mirror[1]):int(rect_selector_mirror[0])] = 0
 
     #reverse the fft
-    freq_filt_img = np.fft.ifft2(np.fft.ifftshift(fequency_representation_shifted_copy))
-    freq_filt_img = np.abs(freq_filt_img)
-    freq_filt_img = freq_filt_img.astype(np.uint8)
-    magnitude_spectrum = 20*np.log(np.abs(fequency_representation_shifted_copy))
+    fequency_representation_shifted_copy = fequency_representation_shifted_copy * fequency_representation_shifted_mask
+    freq_filt_img = np.fft.ifftshift(np.float32(fequency_representation_shifted_copy))
+    freq_filt_img = cv2.idft(freq_filt_img)
+    freq_filt_img = cv2.magnitude(freq_filt_img[:,:,0], freq_filt_img[:,:,1])
 
     #show the new image
-    #plt.title('Altered Image'), plt.xticks([]), plt.yticks([])
-    #plt.imshow(freq_filt_img, cmap = 'gray')
+    reset = True
+    plt.title('Altered Image\n[press \'w\' to save the image, \'r\' to reset the board, or \'q to quit\']'), plt.xticks([]), plt.yticks([])
+    plt.imshow(freq_filt_img, cmap = 'gray')
 
-    #save image
-    cv2.imwrite(filename + '.png', np.array(freq_filt_img))
 
 #================================================================
 #
@@ -102,6 +139,8 @@ def __main__(argv):
     global fequency_representation_shifted
     global fig
     global filename
+    global image
+    global magnitude_spectrum
 
     #variables that contain the command line switch
     #information
@@ -151,26 +190,34 @@ def __main__(argv):
         print("-s : Output Image (s)")
         sys.exit(2)
 
+    
+
     #open the image
     image = grayScaleImage(checkImages(primary))
 
     #convert to frequency spectrum
-    fequency_representation = np.fft.fft2(image)
+    fequency_representation = cv2.dft(np.float32(image), flags=cv2.DFT_COMPLEX_OUTPUT)
     fequency_representation_shifted = np.fft.fftshift(fequency_representation)
-    magnitude_spectrum = 20*np.log(np.abs(fequency_representation_shifted))
+    magnitude_spectrum = 20*np.log(cv2.magnitude(fequency_representation_shifted[:,:,0], fequency_representation_shifted[:,:,1]))
 
-    #better use of matplotlib to show images
-    plt.subplots(1, 1, figsize=(10,7)),plt.imshow(image, cmap = 'gray')
-    plt.title('Input Image'), plt.xticks([]), plt.yticks([])
-    fig, ax = plt.subplots(1, 1, figsize=(10,7))
-    plt.imshow(magnitude_spectrum, cmap = 'gray')
-    plt.title('Magnitude Spectrum'), plt.xticks([]), plt.yticks([])
+    #keep windows reseeting upon request
+    while (1):
+        
+        #better use of matplotlib to show images
+        plt.subplots(1, 1, figsize=(10,7))
+        plt.imshow(image, cmap = 'gray')
+        plt.title('Input Image'), plt.xticks([]), plt.yticks([])
 
-    #set on draw listener
-    rect_selector = RectangleSelector(ax, onclick, button=[1])
+        fig, ax = plt.subplots(1, 1, figsize=(10,7))
+        plt.imshow(magnitude_spectrum, cmap = 'gray')
+        plt.title('Magnitude Spectrum'), plt.xticks([]), plt.yticks([])
+        fig.canvas.mpl_connect('key_press_event', key)
 
-    #display
-    plt.show()
+        #set on draw listener
+        rect_selector = RectangleSelector(ax, onclick, button=[1])
+
+        #display
+        plt.show()
 
 #start main
 argv = ""
