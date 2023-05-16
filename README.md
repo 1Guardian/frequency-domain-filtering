@@ -11,5 +11,3 @@ freq_filter [-h] -t input_image -s [output_image]
             -t : Target Image (t)
             -s : Output Image (s)
             </pre>
-<br>
-            
